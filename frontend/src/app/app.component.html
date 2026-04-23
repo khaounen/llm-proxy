@@ -1,0 +1,391 @@
+@if (!isAuthenticated) {
+  <main class="login-page">
+    <section class="login-card">
+      <h1>LLM Proxy Console</h1>
+      <p class="subtitle">Connecte-toi avant d'acceder au dashboard.</p>
+      <p class="runtime-url">Backend API: <code>{{ apiBaseUrl }}</code></p>
+
+      <div class="login-mode">
+        <button class="button" [class.button--active]="loginMode === 'basic'" (click)="setLoginMode('basic')">Login/Password</button>
+        @if (oidcLoginEnabled) {
+          <button class="button" [class.button--active]="loginMode === 'oidc'" (click)="setLoginMode('oidc')">OIDC</button>
+        }
+      </div>
+
+      @if (loginMode === 'basic') {
+        <form class="stack" (ngSubmit)="loginWithBasic()">
+          <label>
+            Username
+            <input [(ngModel)]="basicUsername" name="basicUsername" required />
+          </label>
+          <label>
+            Password
+            <input [(ngModel)]="basicPassword" name="basicPassword" type="password" required />
+          </label>
+          <button class="button button--primary" type="submit">Se connecter</button>
+        </form>
+      }
+
+      @if (oidcLoginEnabled && loginMode === 'oidc') {
+        <div class="stack">
+          <p>Connexion OIDC via Authorization Code + PKCE.</p>
+          <button class="button button--primary" type="button" (click)="loginWithOidc()">Se connecter via OIDC</button>
+        </div>
+      }
+
+      @if (feedbackMessage !== '') {
+        <p class="notice" [class.notice--error]="feedbackError">{{ feedbackMessage }}</p>
+      }
+    </section>
+  </main>
+} @else {
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>LLM Proxy</h1>
+        <p>{{ authProfile?.username }} ({{ currentRoleLabel }})</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="button" (click)="refreshCurrentView()">Refresh</button>
+        <button class="button button--danger" (click)="logout()">Logout</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        @if (isAdmin) {
+          <button class="menu-btn" [class.menu-btn--active]="activeView === 'dashboard'" (click)="switchView('dashboard')">Dashboard</button>
+          <button class="menu-btn" [class.menu-btn--active]="activeView === 'routes'" (click)="switchView('routes')">Routes LLM</button>
+        }
+        @if (canManageTokens) {
+          <button class="menu-btn" [class.menu-btn--active]="activeView === 'tokens'" (click)="switchView('tokens')">Mes tokens</button>
+        }
+      </aside>
+
+      <section class="content">
+        @if (feedbackMessage !== '') {
+          <section class="notice" [class.notice--error]="feedbackError">{{ feedbackMessage }}</section>
+        }
+
+        @if (activeView === 'dashboard' && isAdmin) {
+          <section class="panel">
+            <h2>Daily user activities</h2>
+            @if (dashboard && !loadingDashboard) {
+              <div class="stats-grid">
+                <div class="stat-card"><h3>Total requests</h3><p>{{ dashboard.daily.totalRequests }}</p></div>
+                <div class="stat-card"><h3>Unique users</h3><p>{{ dashboard.daily.uniqueUsers }}</p></div>
+                <div class="stat-card"><h3>Sessions</h3><p>{{ dashboard.daily.totalSessions }}</p></div>
+                <div class="stat-card"><h3>Error rate</h3><p>{{ dashboard.daily.errorRate | number: '1.1-2' }}%</p></div>
+                <div class="stat-card"><h3>Avg latency</h3><p>{{ dashboard.daily.avgLatencyMs | number: '1.0-0' }} ms</p></div>
+              </div>
+              <div class="dual-grid">
+                <div class="panel panel--inner">
+                  <h3>Top consumers (daily)</h3>
+                  <table>
+                    <thead><tr><th>User</th><th>Requests</th></tr></thead>
+                    <tbody>
+                      @for (item of dashboard.daily.topConsumers; track item.label) {
+                        <tr><td>{{ item.label }}</td><td>{{ item.total }}</td></tr>
+                      }
+                      @if (dashboard.daily.topConsumers.length === 0) {
+                        <tr><td colspan="2" class="empty">No data</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <div class="panel panel--inner">
+                  <h3>Top routes (daily)</h3>
+                  <table>
+                    <thead><tr><th>Route</th><th>Requests</th></tr></thead>
+                    <tbody>
+                      @for (item of dashboard.daily.topRoutes; track item.label) {
+                        <tr><td>{{ item.label }}</td><td>{{ item.total }}</td></tr>
+                      }
+                      @if (dashboard.daily.topRoutes.length === 0) {
+                        <tr><td colspan="2" class="empty">No data</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            } @else {
+              <p>{{ loadingDashboard ? 'Loading dashboard...' : 'No dashboard data' }}</p>
+            }
+          </section>
+
+          <section class="panel">
+            <h2>Monthly user activities</h2>
+            @if (dashboard && !loadingDashboard) {
+              <div class="stats-grid">
+                <div class="stat-card"><h3>Total requests</h3><p>{{ dashboard.monthly.totalRequests }}</p></div>
+                <div class="stat-card"><h3>Unique users</h3><p>{{ dashboard.monthly.uniqueUsers }}</p></div>
+                <div class="stat-card"><h3>Sessions</h3><p>{{ dashboard.monthly.totalSessions }}</p></div>
+                <div class="stat-card"><h3>Error rate</h3><p>{{ dashboard.monthly.errorRate | number: '1.1-2' }}%</p></div>
+                <div class="stat-card"><h3>Avg latency</h3><p>{{ dashboard.monthly.avgLatencyMs | number: '1.0-0' }} ms</p></div>
+              </div>
+              <div class="dual-grid">
+                <div class="panel panel--inner">
+                  <h3>Top consumers (monthly)</h3>
+                  <table>
+                    <thead><tr><th>User</th><th>Requests</th></tr></thead>
+                    <tbody>
+                      @for (item of dashboard.monthly.topConsumers; track item.label) {
+                        <tr><td>{{ item.label }}</td><td>{{ item.total }}</td></tr>
+                      }
+                      @if (dashboard.monthly.topConsumers.length === 0) {
+                        <tr><td colspan="2" class="empty">No data</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <div class="panel panel--inner">
+                  <h3>Top routes (monthly)</h3>
+                  <table>
+                    <thead><tr><th>Route</th><th>Requests</th></tr></thead>
+                    <tbody>
+                      @for (item of dashboard.monthly.topRoutes; track item.label) {
+                        <tr><td>{{ item.label }}</td><td>{{ item.total }}</td></tr>
+                      }
+                      @if (dashboard.monthly.topRoutes.length === 0) {
+                        <tr><td colspan="2" class="empty">No data</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+          </section>
+
+          <section class="panel">
+            <h2>Recent traffic</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>At</th>
+                  <th>User</th>
+                  <th>Route</th>
+                  <th>Status</th>
+                  <th>Latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (metric of recentMetrics; track metric.id) {
+                  <tr>
+                    <td>{{ metric.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+                    <td>{{ metric.username }}</td>
+                    <td>{{ metric.routeName }}</td>
+                    <td>{{ metric.statusCode }}</td>
+                    <td>{{ metric.latencyMs }} ms</td>
+                  </tr>
+                }
+                @if (!loadingRecentMetrics && recentMetrics.length === 0) {
+                  <tr><td colspan="5" class="empty">No recent traffic</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+
+          <section class="panel">
+            <h2>Recent user sessions</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Session ID</th>
+                  <th>User</th>
+                  <th>Started</th>
+                  <th>Last Prompt</th>
+                  <th>Prompts</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (session of recentSessions; track session.id) {
+                  <tr>
+                    <td>#{{ session.id }}</td>
+                    <td>{{ session.username }}</td>
+                    <td>{{ session.startedAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+                    <td>{{ session.lastPromptAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+                    <td>{{ session.promptCount }}</td>
+                  </tr>
+                }
+                @if (!loadingRecentSessions && recentSessions.length === 0) {
+                  <tr><td colspan="5" class="empty">No user sessions</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+
+          <section class="panel">
+            <h2>Recent prompts</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>At</th>
+                  <th>User</th>
+                  <th>Session</th>
+                  <th>Route</th>
+                  <th>Prompt</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (prompt of recentPrompts; track prompt.id) {
+                  <tr>
+                    <td>{{ prompt.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+                    <td>{{ prompt.username }}</td>
+                    <td>{{ prompt.sessionId ? ('#' + prompt.sessionId) : '-' }}</td>
+                    <td>{{ prompt.routeName }}</td>
+                    <td class="prompt-cell">{{ prompt.promptPreview || '-' }}</td>
+                    <td>{{ prompt.statusCode }}</td>
+                  </tr>
+                }
+                @if (!loadingRecentPrompts && recentPrompts.length === 0) {
+                  <tr><td colspan="6" class="empty">No prompts captured yet</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
+
+        @if (activeView === 'routes' && isAdmin) {
+          <section class="panel">
+            <h2>Nouvelle route LLM</h2>
+            <form class="grid" (ngSubmit)="createRoute()">
+              <label>Nom<input [(ngModel)]="routeForm.name" name="routeName" required /></label>
+              <label>Prefix entrant<input [(ngModel)]="routeForm.incomingPrefix" name="incomingPrefix" required /></label>
+              <label class="full">Target base URL<input [(ngModel)]="routeForm.targetBaseUrl" name="targetBaseUrl" required /></label>
+              <label>
+                Auth sortante
+                <select [(ngModel)]="routeForm.outboundAuthType" name="outboundAuthType">
+                  <option value="NONE">NONE</option>
+                  <option value="BEARER">BEARER</option>
+                </select>
+              </label>
+              @if (routeForm.outboundAuthType === 'BEARER') {
+                <label class="full">Bearer token LLM<input [(ngModel)]="routeForm.outboundBearerToken" name="outboundBearerToken" type="password" required /></label>
+              }
+              <label class="switch">
+                <input [(ngModel)]="routeForm.active" name="routeActive" type="checkbox" />
+                Active
+              </label>
+              <div class="actions"><button class="button button--primary" type="submit" [disabled]="creatingRoute">{{ creatingRoute ? 'Creation...' : 'Creer la route' }}</button></div>
+            </form>
+          </section>
+
+          <section class="panel">
+            <h2>Routes configurees</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nom</th>
+                  <th>Prefix</th>
+                  <th>Target</th>
+                  <th>Auth</th>
+                  <th>Active</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (route of routes; track route.id) {
+                  <tr>
+                    <td>{{ route.id }}</td>
+                    <td>{{ route.name }}</td>
+                    <td><code>{{ route.incomingPrefix }}</code></td>
+                    <td><code>{{ route.targetBaseUrl }}</code></td>
+                    <td>{{ route.outboundAuthType }}</td>
+                    <td>{{ route.active ? 'Yes' : 'No' }}</td>
+                    <td class="actions-cell">
+                      <button class="button" (click)="toggleRoute(route)">{{ route.active ? 'Desactiver' : 'Activer' }}</button>
+                      <button class="button button--danger" (click)="deleteRoute(route.id)">Supprimer</button>
+                    </td>
+                  </tr>
+                }
+                @if (!loadingRoutes && routes.length === 0) {
+                  <tr><td colspan="7" class="empty">Aucune route configuree</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
+
+        @if (activeView === 'tokens' && canManageTokens) {
+          <section class="panel">
+            <h2>Mes tokens proxy</h2>
+            <form class="grid" (ngSubmit)="createToken()">
+              <label>Label (optionnel)<input [(ngModel)]="tokenForm.label" name="tokenLabel" placeholder="VSCode plugin" /></label>
+              <label>
+                Duree
+                <select [(ngModel)]="tokenForm.expiryPolicy" name="tokenExpiryPolicy">
+                  <option value="NEVER">Never expires</option>
+                  <option value="P30D">1 month</option>
+                  <option value="P365D">1 year</option>
+                </select>
+              </label>
+              <div class="actions"><button class="button button--primary" type="submit" [disabled]="creatingToken">{{ creatingToken ? 'Generation...' : 'Generer un token' }}</button></div>
+            </form>
+
+            @if (lastGeneratedToken !== '') {
+              <div class="token-once">
+                <p>Token genere (visible une seule fois):</p>
+                <code>{{ lastGeneratedToken }}</code>
+                <button class="button" type="button" (click)="copyLastGeneratedToken()">Copy</button>
+              </div>
+            }
+
+            <div class="usage-card">
+              <h3>Exemples d'usage avec curl</h3>
+              <p>Backend API depuis <code>assets/env.js</code>: <code>{{ apiBaseUrl }}</code></p>
+              @if (availableProxyRoutes.length > 0) {
+                @for (route of availableProxyRoutes; track route.incomingPrefix) {
+                  <div class="usage-route">
+                    <p><strong>{{ route.name }}</strong> <code>{{ route.incomingPrefix }}</code></p>
+                    <pre><code>{{ buildCurlExample(route) }}</code></pre>
+                    <button class="button" type="button" (click)="copyRouteCurlExample(route)">Copy curl</button>
+                  </div>
+                }
+              } @else {
+                <p class="empty">Aucun proxy actif disponible pour le moment.</p>
+              }
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Prefix</th>
+                  <th>Label</th>
+                  <th>Status</th>
+                  <th>Expires At</th>
+                  <th>Last Used</th>
+                  <th>Policy</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (token of userTokens; track token.id) {
+                  <tr>
+                    <td><code>{{ token.tokenPrefix }}</code></td>
+                    <td>{{ token.label || '-' }}</td>
+                    <td><span class="status" [class.status--revoked]="token.status === 'REVOKED'" [class.status--expired]="token.status === 'EXPIRED'">{{ token.status }}</span></td>
+                    <td>{{ token.expiresAt ? (token.expiresAt | date: 'yyyy-MM-dd HH:mm:ss') : 'Never' }}</td>
+                    <td>{{ token.lastUsedAt ? (token.lastUsedAt | date: 'yyyy-MM-dd HH:mm:ss') : '-' }}</td>
+                    <td>
+                      <select [disabled]="token.status === 'REVOKED'" [value]="token.expiryPolicy" (change)="onTokenExpiryChange(token, $event)">
+                        <option value="NEVER">Never</option>
+                        <option value="P30D">1 month</option>
+                        <option value="P365D">1 year</option>
+                      </select>
+                    </td>
+                    <td class="actions-cell"><button class="button button--danger" [disabled]="token.status === 'REVOKED'" (click)="revokeToken(token)">Revoquer</button></td>
+                  </tr>
+                }
+                @if (!loadingTokens && userTokens.length === 0) {
+                  <tr><td colspan="7" class="empty">Aucun token genere</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
+      </section>
+    </div>
+  </main>
+}

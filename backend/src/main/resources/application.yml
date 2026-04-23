@@ -1,0 +1,30 @@
+server:
+  port: 8085
+
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/llm-proxy-db;MODE=PostgreSQL;AUTO_SERVER=TRUE
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/llm-proxy
+
+app:
+  security:
+    oauth2:
+      enabled: false
+
+logging:
+  level:
+    org.springframework.security: INFO
